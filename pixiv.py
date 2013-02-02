@@ -45,6 +45,27 @@
 #htmlcode = htmlcode.replace('type "novel"', '')
 #htmlcode = htmlcode.replace('type "message"', '')
 
+#Problem
+#2013.2.1
+#修改loggin函数,加入
+#htmlcode = htmlcode.replace('"{{tag_name}}"', '')
+#修改getInfo函数,将匹配代码加入try except，一般匹配失败就停止，此时可能
+#图片信息已经足够，如果不足够则下面使用会报错
+#    try:
+#            hp.feed(htmlcode.decode('utf-8'))
+#            hp.close()
+#    except HTMLParser.HTMLParseError as e:
+#        print (u'匹配信息出错，估计是网页其干扰信息')
+
+#Update
+#2013.2.2
+#加入getInfoByRegex函数，直接使用正则表达式取得图片信息
+#将默认取图片信息改为用正则，加入-c
+# --closeregex选项，用于关闭正则用回原来的HTMLPareser
+#将login，getWeb函数里获取到网页后去除干扰的代码移到getInfo函数
+#！全体代码格式更改，全部使用8个空格作为缩进
+
+
 import urllib
 import urllib2
 import cookielib
@@ -102,9 +123,9 @@ class PixivHTMLParser(HTMLParser.HTMLParser):
                 self.id = ''
                 self.title = ''
                 self.titleflag = 0
-        
-    # 重定义此函数
-    # Internal -- handle starttag, return end or -1 if not terminated
+
+        # 重定义此函数
+        # Internal -- handle starttag, return end or -1 if not terminated
         def parse_starttag(self, i):
                 self.__starttag_text = None
                 endpos = self.check_for_whole_start_tag(i)
@@ -155,7 +176,7 @@ class PixivHTMLParser(HTMLParser.HTMLParser):
                         #if tag in self.CDATA_CONTENT_ELEMENTS:
                         #    self.set_cdata_mode()
                 return endpos
-        
+
         def handle_starttag(self, tag, attrs):
                 if tag == "img":
                         #匹配例子<img src="http://img21.pixiv.net/img/s_f_nov17/20090818_m.jpg" alt="縁側/パセリ" title="縁側/パセリ" border="0" />
@@ -165,10 +186,10 @@ class PixivHTMLParser(HTMLParser.HTMLParser):
                                         if variable == "src":
                                                 if value.encode('gbk').find(self.id) != -1:
                                                         self.attrs = attrs
-        
+
                 if tag == 'title':
                         self.titleflag = 1
-    
+
         def handle_data(self, data):
                 if self.titleflag == 1:
                         self.title = data
@@ -182,7 +203,7 @@ def no_redirect(req, fp, code, msg, hdrs, newurl):
 redirect_handler = urllib2.HTTPRedirectHandler()
 redirect_handler.redirect_request=no_redirect
 
-def login(addr, useproxy=False, proxyip='http://127.0.0.1:8083'):
+def login(addr, useproxy=False, proxyip='http://127.0.0.1:8087'):
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookielib.LWPCookieJar()))
         if useproxy:
                 proxy_support = urllib2.ProxyHandler({'http':proxyip})
@@ -200,145 +221,179 @@ def login(addr, useproxy=False, proxyip='http://127.0.0.1:8083'):
                         print u'获取中'
                         htmlcode = f.read()
                         f.close()
-		if htmlcode != None:
-			htmlcode = htmlcode.replace("</scr' + 'ipt>", '')
-			htmlcode = htmlcode.replace("//<![CDATA[", '')
-			htmlcode = htmlcode.replace('type "novel"', '')
-			htmlcode = htmlcode.replace('type "message"', '')
+        if htmlcode != None:
                 return htmlcode
         else:
                 print u'登录失败'
                 return None
 
-def getWeb(addr, useproxy=False, proxyip='http://127.0.0.1:8083', opener=None):
-	req = urllib2.Request(addr)
-	req.add_header("Cookie", "pixiv_embed=pix")
-	if not opener:
+def getWeb(addr, useproxy=False, proxyip='http://127.0.0.1:8087', opener=None):
+        req = urllib2.Request(addr)
+        req.add_header("Cookie", "pixiv_embed=pix")
+        if not opener:
                 opener = urllib2.build_opener(redirect_handler)
-	htmlcode = None
-	if useproxy:
-		proxy_support = urllib2.ProxyHandler({'http':proxyip})
-		opener.add_handler(proxy_support)
-	try:
-		f = opener.open(req)
-	except urllib2.HTTPError as e:
-                        if e.code == 302:
-                                print u'图片可能是R18，需登录，用-l选项或-s选项'
-			if e.code == 404:
-				print u'无法链接到地址'
-	except urllib2.URLError as e:
-		print (u'网络错误:' + e.reason.__str__())
-	else:
-		print u'获取中'
-		htmlcode = f.read()
-		f.close()
-	if htmlcode != None:
-		htmlcode = htmlcode.replace("</scr' + 'ipt>", '')
-		htmlcode = htmlcode.replace("//<![CDATA[", '')
-		htmlcode = htmlcode.replace('type "novel"', '')
-		htmlcode = htmlcode.replace('type "message"', '')
-	'''测试用
-	htmlout = open("htmlcode.txt", 'w')
-	htmlout.write(htmlcode)
-	htmlout.close()
-	'''
-	return htmlcode	
+        htmlcode = None
+        if useproxy:
+                proxy_support = urllib2.ProxyHandler({'http':proxyip})
+                opener.add_handler(proxy_support)
+        try:
+                f = opener.open(req)
+        except urllib2.HTTPError as e:
+                if e.code == 302:
+                        print u'图片可能是R18，需登录，用-l选项或-s选项'
+                if e.code == 404:
+                        print u'无法链接到地址'
+        except urllib2.URLError as e:
+                print (u'网络错误:' + e.reason.__str__())
+        else:
+                print u'获取中'
+                htmlcode = f.read()
+                f.close()
+        return htmlcode	
 
 def getInfo(htmlcode, id):
-	hp = PixivHTMLParser()
-	hp.id = id
-	hp.feed(htmlcode.decode('utf-8'))
-	hp.close()
-	info = {}
-	if len(hp.attrs) == 0 or len(hp.title) ==0 :
-		print u'匹配图片信息失败1'
-		return
-	for (k, v) in hp.attrs:
-		if k == 'src':
-			info['link'] = v.replace(id+'_m', id)
-			i = info['link'].find(id)+len(id)+1
-			info['type'] = info['link'][i:i+3]
-		'''已经失效，title只存了图片名	
-		if k == 'title':
-			info['name'] = v.split('/')[0]
-			info['artist'] = v.split('/')[1]
-		'''
-	m = re.match(u'.*?「([^」]*)」\s*/\s*「([^」]*)」.*', hp.title)
-	if not m:
+        #使用HTMLPareser匹配信息，先去掉干扰
+        htmlcode = htmlcode.replace("</scr' + 'ipt>", '')
+        htmlcode = htmlcode.replace("//<![CDATA[", '')
+        htmlcode = htmlcode.replace('type "novel"', '')
+        htmlcode = htmlcode.replace('type "message"', '')
+        htmlcode = htmlcode.replace('"{{tag_name}}"', '')
+
+        hp = PixivHTMLParser()
+        hp.id = id
+        try:
+                hp.feed(htmlcode.decode('utf-8'))
+                hp.close()
+        except HTMLParser.HTMLParseError as e:
+                print (u'匹配信息出错，估计是网页其干扰信息')
+
+        info = {}
+        if len(hp.attrs) == 0 or len(hp.title) ==0 :
+                print u'匹配图片信息失败1'
+                return
+        for (k, v) in hp.attrs:
+                if k == 'src':
+                        info['link'] = v.replace(id+'_m', id)
+                        i = info['link'].find(id)+len(id)+1
+                        info['type'] = info['link'][i:i+3]
+                '''已经失效，title只存了图片名	
+                if k == 'title':
+                        info['name'] = v.split('/')[0]
+                        info['artist'] = v.split('/')[1]
+                '''
+        m = re.match(u'.*?「([^」]*)」\s*/\s*「([^」]*)」.*', hp.title)
+        if not m:
                 print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
                 info['name'] = ''
                 info['artist'] = ''
                 info['nameerror'] = 'error'
                 return info
-	info['name'] = m.group(1)
-	info['artist'] = m.group(2)
-	if len(info['name']) == 0 or len(info['artist']) == 0 :
+        info['name'] = m.group(1)
+        info['artist'] = m.group(2)
+        if len(info['name']) == 0 or len(info['artist']) == 0 :
                 print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
                 info['name'] = ''
                 info['artist'] = ''
                 info['nameerror'] = 'error'
                 return info
-	print u'匹配图片信息成功'
-	info['nameerror'] = 'none'
-	return info
+        print u'匹配图片信息成功'
+        info['nameerror'] = 'none'
+        return info
+
+def getInfoByRegex(htmlcode, id):
+        htmlcode = htmlcode.decode("utf-8")
+        reTitle = r"<title>([^<]*)</title>"
+        reImg = r"<img\s*src=\"(.*?" + id + r".*?)\".*(?=/>)/>"
+
+        title = re.search(reTitle, htmlcode)
+        if not title:
+                print u'匹配图片信息失败'
+                return
+        imgLink = re.search(reImg, htmlcode)
+        if not imgLink:
+                print u'匹配图片地址失败'
+                return
+        info = {}
+        info['link'] = imgLink.group(1).replace(id+'_m', id)
+        i = info['link'].find(id)+len(id)+1
+        info['type'] = info['link'][i:i+3]
+
+        m = re.match(u'.*?「([^」]*)」\s*/\s*「([^」]*)」.*', title.group(1))
+        if not m:
+                print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
+                info['name'] = ''
+                info['artist'] = ''
+                info['nameerror'] = 'error'
+                return info
+        info['name'] = m.group(1)
+        info['artist'] = m.group(2)
+        if len(info['name']) == 0 or len(info['artist']) == 0 :
+                print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
+                info['name'] = ''
+                info['artist'] = ''
+                info['nameerror'] = 'error'
+                return info
+        print u'匹配图片信息成功'
+        info['nameerror'] = 'none'
+        return info
 
 
 # 这个方法不太成熟，不用了
 def getManga(filename, id, useproxy, proxy):
-	addr = 'http://www.pixiv.net/member_illust.php?mode=manga&illust_id='+id
-	mangaPage = getWeb(addr, useproxy, proxy)
-	if mangaPage != None:
-		 print u'是漫画，请等"漫画下载完毕"出现，如果没有说明下载中途出现未知错误'
-	print mangaPage
-	p = re.compile("unshift\('.*?'\)")
-	m = p.findall(mangaPage)
-	if not m:
-		filename = filename.decode('utf8')
-		for picaddr in m:
-			pic = getWeb(picaddr, useproxy, proxy)
-			fn = ''
-			if pic != None:
-				fn = filename.replace(str(id), str(id)+'_p'+str(i))
-				try:
-					f = open(fn, 'wb')
-					f.write(pic)
-				except IOError:
-					print u'写文件错误'
-				else:
-                        		try:
-                                		print (u'下载完成:'+fn) #print会自动调用fn.encode(sysenc)，可以测试到是否包含非系统编码字符，最终文件名还是Unicode编码保存
-                        		except UnicodeEncodeError:
-                                		print (u'下载完成:id='+str(id)+u'，图片名包含非系统编码字符，某些看图软件可能打不开')
-						f.close()
-						i = i+1
-			else:
-				print u'无法获取图片'
+        addr = 'http://www.pixiv.net/member_illust.php?mode=manga&illust_id='+id
+        mangaPage = getWeb(addr, useproxy, proxy)
+        if mangaPage != None:
+                 print u'是漫画，请等"漫画下载完毕"出现，如果没有说明下载中途出现未知错误'
+        print mangaPage
+        p = re.compile("unshift\('.*?'\)")
+        m = p.findall(mangaPage)
+        if not m:
+                filename = filename.decode('utf8')
+                for picaddr in m:
+                        pic = getWeb(picaddr, useproxy, proxy)
+                        fn = ''
+                        if pic != None:
+                                fn = filename.replace(str(id), str(id)+'_p'+str(i))
+                                try:
+                                        f = open(fn, 'wb')
+                                        f.write(pic)
+                                except IOError:
+                                        print u'写文件错误'
+                                else:
+                                        try:
+                                                print (u'下载完成:'+fn) #print会自动调用fn.encode(sysenc)，可以测试到是否包含非系统编码字符，最终文件名还是Unicode编码保存
+                                        except UnicodeEncodeError:
+                                                print (u'下载完成:id='+str(id)+u'，图片名包含非系统编码字符，某些看图软件可能打不开')
+                                        f.close()
+                                        i = i+1
+                        else:
+                                print u'无法获取图片'
 
 
 
 def getPic(addr, filename, useproxy, proxy, id):
-	pic = getWeb(addr, useproxy, proxy)
-	fn = ''
-	if pic != None:
+        pic = getWeb(addr, useproxy, proxy)
+        fn = ''
+        if pic != None:
                 fn = filename.decode('utf8')
-		try:
-			f = open(fn, 'wb')
-			f.write(pic)
-		except IOError:
-			print u'写文件错误'
-		else:
+                try:
+                        f = open(fn, 'wb')
+                        f.write(pic)
+                except IOError:
+                        print u'写文件错误'
+                else:
                         try:
                                 print (u'下载完成:'+fn) #print会自动调用fn.encode(sysenc)，可以测试到是否包含非系统编码字符，最终文件名还是Unicode编码保存
                         except UnicodeEncodeError:
                                 print (u'下载完成:id='+str(id)+u'，图片名包含非系统编码字符，某些看图软件可能打不开')
-			f.close()
-	else:
-		print u'无法获取图片'
-		print u'有可能漫画，尝试漫画模式'
-		#getManga(filename, id, useproxy, proxy)
-		s = addr
-		pic = getWeb(s.replace(str(id), str(id)+'_p0'), useproxy, proxy)
-		if pic != None:
+                        f.close()
+        else:
+                print u'无法获取图片'
+                print u'有可能漫画，尝试漫画模式'
+                #getManga(filename, id, useproxy, proxy)
+                s = addr
+                pic = getWeb(s.replace(str(id), str(id)+'_p0'), useproxy, proxy)
+                if pic != None:
                         print u'是漫画，请等"漫画下载完毕"出现，如果没有说明下载中途出现未知错误'
                         filename = filename.decode('utf8')
                         i = 0
@@ -359,9 +414,8 @@ def getPic(addr, filename, useproxy, proxy, id):
                                         i = i + 1
                                         pic = getWeb(s.replace(str(id), str(id)+'_p'+str(i)), useproxy, proxy)
                         print u'漫画下载完毕'
-		else:
+                else:
                         print u'非漫画，无法获取图片'
-		
 
 
 def main():
@@ -369,17 +423,20 @@ def main():
         global proxy
         global directory
         global filename
-	usage = "usage: %prog [options]"    
-	parser = OptionParser(usage)
-	parser.add_option("-d", "--path", dest="path", help=u"保存图片路径")
-	parser.add_option("-u", "--usedefaultproxy", action="store_true", dest="useproxy", help=u'使用默认代理')
-	parser.add_option("-p", "--proxy", action="store", dest="proxy", help=u'使用代理，后面输入代理IP地址与端口，格式ip:port')
-	parser.add_option("-l", "--login", action="store_true", dest="login", help=u'使用在源码写好的默认账号登录')
-	parser.add_option("-s", "--signin", action="store", dest="signin", help=u'登录，后面参数格式 "登录号:密码"')
-	parser.add_option("-n", "--name", action="store", dest="name", help=u'后面根据名字模式，使用-v选项打印名字名字模式')
-	parser.add_option("-v", action="store_true", help=u'打印自定义名字模式帮助')
-			
-	namepattern=ur"""
+        usage = "usage: %prog [options]"    
+        parser = OptionParser(usage)
+        parser.add_option("-d", "--path", dest="path", help=u"保存图片路径")
+        parser.add_option("-u", "--usedefaultproxy", action="store_true", dest="useproxy", help=u'使用默认代理')
+        parser.add_option("-p", "--proxy", action="store", dest="proxy", help=u'使用代理，后面输入代理IP地址与端口，格式ip:port')
+        parser.add_option("-l", "--login", action="store_true", dest="login", help=u'使用在源码写好的默认账号登录')
+        parser.add_option("-s", "--signin", action="store", dest="signin", help=u'登录，后面参数格式 "登录号:密码"')
+        parser.add_option("-n", "--name", action="store", dest="name", help=u'后面根据名字模式，使用-v选项打印名字名字模式')
+        parser.add_option("-v", action="store_true", help=u'打印自定义名字模式帮助')
+        parser.add_option("-c", "--closeregex", action="store_true",
+                dest="closeregex",
+                help=u'默认使用正则来搜索图片信息,此选项表示不用正则，使用HTMLParser来匹配图片信息')
+
+        namepattern=ur"""
 名字模式：
 %i代表id号，%n代表图片名，%a代表作者名
 可选与可自由组合,文件名有空格用引号
@@ -390,21 +447,21 @@ def main():
     %i_%n--20111001    20090818_20090818--縁側
     selfDefineName     selfDefineName
 """
-	(options, args) = parser.parse_args()
-	if len(args) > 0:
-		parser.error(u"程序不需要参数")
-	if options.v:
-		print namepattern
-		return
+        (options, args) = parser.parse_args()
+        if len(args) > 0:
+                parser.error(u"程序不需要参数")
+        if options.v:
+                print namepattern
+                return
 
-	if options.useproxy:
-		useproxy = options.useproxy
-	if options.proxy:
-		useproxy = True
-		proxy = options.proxy
+        if options.useproxy:
+                useproxy = options.useproxy
+        if options.proxy:
+                useproxy = True
+                proxy = options.proxy
 
-	input = raw_input(u"输入Id或地址:".encode(sysenc))
-	if input.strip().find('t.cn') != -1:            # 处理微博链接
+        input = raw_input(u"输入Id或地址:".encode(sysenc))
+        if input.strip().find('t.cn') != -1:            # 处理微博链接
                 opener = urllib2.build_opener(redirect_handler)
                 try:
                         f = opener.open(input)
@@ -412,38 +469,48 @@ def main():
                         if e.code == 302:
                                 input = e.hdrs['Location']
                 print u'真实地址：' + input
-	p = re.compile('\d+$')
-	m = p.search(input.strip())
-	if not m:
-		print u'可能不是正确的链接'
-		return
-	id = m.group()
-	addr = 'http://www.pixiv.net/member_illust.php?mode=medium&illust_id='+id
-	
-	if options.signin:
+        p = re.compile('\d+$')
+        m = p.search(input.strip())
+        if not m:
+                print u'可能不是正确的链接'
+                return
+        id = m.group()
+        addr = 'http://www.pixiv.net/member_illust.php?mode=medium&illust_id='+id
+
+        if options.signin:
                 s = options.signin.strip()
                 logindata['pixiv_id'] = s.split(':')[0]
                 logindata['pass'] = s.split(':')[1]
                 options.login = True
                 
-	if options.login:
+        if options.login:
                 htmlcode = login(addr, useproxy, proxy)
-	else:
+        else:
                 htmlcode = getWeb(addr, useproxy, proxy)
-	if htmlcode != None:
-		info = getInfo(htmlcode, id)
-		if info:
+        if htmlcode != None:
+                '''测试用，输出获取页面
+                htmlout = open("htmlcode.txt", 'w')
+                htmlout.write(htmlcode)
+                htmlout.close()
+                '''
+
+                info={}
+                if options.closeregex:
+                        info = getInfo(htmlcode, id)
+                else:
+                        info = getInfoByRegex(htmlcode, id)
+                if info:
                         if info['nameerror'] == 'error':
                                 filename = '%i'
-			if options.name:
-				filename = options.name
-				filename = filename.decode(sysenc).encode('utf8')
+                        if options.name:
+                                filename = options.name
+                                filename = filename.decode(sysenc).encode('utf8')
 
-			filename = filename.replace('%i', id)
-			filename = filename.replace('%n', info['name'].encode('utf8'))
-			filename = filename.replace('%a', info['artist'].encode('utf8'))
-			filename = filename + '.' + info['type'].encode('utf8')
-			
+                        filename = filename.replace('%i', id)
+                        filename = filename.replace('%n', info['name'].encode('utf8'))
+                        filename = filename.replace('%a', info['artist'].encode('utf8'))
+                        filename = filename + '.' + info['type'].encode('utf8')
+
 
                         # 判断名字是否合法
                         if not re.match("[^\\s\\\\/:\\*\\?\\\"<>\\|](\\x20|[^\\s\\\\/:\\*\\?\\\"<>\\|])*[^\\s\\\\/:\\*\\?\\\"<>\\|\\.]$", filename):
@@ -454,14 +521,14 @@ def main():
                                 else:
                                         print u'图片名字不合法，请使用-n选项更名，名字模式可用-v查看'
                                 return
-			if options.path:
-				directory = options.path
-				print u"保存至 %s" % options.path			
-			if os.path.exists(directory) == False:
-				os.mkdir(directory)
-			print(u"图片源地址:"+info['link'])
-			getPic(info['link'], directory+filename, useproxy, proxy, id)
+                        if options.path:
+                                directory = options.path
+                                print u"保存至 %s" % options.path
+                        if os.path.exists(directory) == False:
+                                os.mkdir(directory)
+                        print(u"图片源地址:"+info['link'])
+                        getPic(info['link'], directory+filename, useproxy, proxy, id)
 
-			
+
 if __name__ == "__main__":
-	main()
+        main()
