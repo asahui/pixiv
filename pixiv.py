@@ -78,7 +78,7 @@ from optparse import OptionParser
 useproxy = False               #默认不使用代理，如果用-u选项开启则默认使用下面的proxy代理   
 proxy = '127.0.0.1:8087'       #默认使用goagent代理，可以使用-p更改
 #directory = 'd:\\PixivPic\\'   #默认路径
-directory = '/home/xuhui/pictures/'
+directory = '/home/xuhui/pictures/Pixiv/'
 filename = '%i_%n／%a'         #默认名字模式
 logindata={'mode':'login', 'pixiv_id':'yorkfinechan@gmail.com', 'pass':'cxhcxh'}    #R18图片需要登录，这里可默认设计登录账号与密码，就可以直接使用-l选项开启登录下载
 sysenc = 'utf8'                 #系统默认编码，命令行默认编码
@@ -284,6 +284,7 @@ def getInfo(htmlcode, id):
         m = re.match(u'.*?「([^」]*)」\s*/\s*「([^」]*)」.*', hp.title)
         if not m:
                 print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
+                print hp.title
                 info['name'] = ''
                 info['artist'] = ''
                 info['nameerror'] = 'error'
@@ -321,6 +322,7 @@ def getInfoByRegex(htmlcode, id):
         m = re.match(u'.*?「([^」]*)」\s*/\s*「([^」]*)」.*', title.group(1))
         if not m:
                 print u'匹配图片名或作者名失败，请用-n，否则以ID号为名'
+                print title.group(1)
                 info['name'] = ''
                 info['artist'] = ''
                 info['nameerror'] = 'error'
