@@ -221,8 +221,8 @@ def login(addr, useproxy=False, proxyip='http://127.0.0.1:8087'):
                         print u'获取中'
                         htmlcode = f.read()
                         f.close()
-        if htmlcode != None:
-                return htmlcode
+                if htmlcode != None:
+                        return htmlcode
         else:
                 print u'登录失败'
                 return None
