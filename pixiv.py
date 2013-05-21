@@ -304,7 +304,7 @@ def getInfo(htmlcode, id):
 def getInfoByRegex(htmlcode, id):
         htmlcode = htmlcode.decode("utf-8")
         reTitle = r"<title>([^<]*)</title>"
-        reImg = r"<img\s*src=\"(.*?" + id + r".*?)\".*(?=/>)/>"
+        reImg = r"<img\s*src=\"([^\"]*?" + id + r".*?)\".*(?=/>)/>"
 
         title = re.search(reTitle, htmlcode)
         if not title:
